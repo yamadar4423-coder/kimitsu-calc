@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#2496ed">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="気密計算">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%232496ed'/%3E%3Ctext x='90' y='118' font-size='90' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3EC%3C/text%3E%3C/svg%3E">
+<title>気密計算 C値 | JIS A 2201</title>
+<style>
+  :root{
+    --bg:#f3f5f8; --card:#ffffff; --ink:#1a2332; --muted:#5b6b80; --line:#dbe2ec;
+    --blue:#2496ed; --blue-d:#1a73c7; --green:#1e9e4a; --amber:#c98a16; --red:#d64545;
+    --shadow:0 1px 3px rgba(20,40,70,.08),0 4px 16px rgba(20,40,70,.06);
+    --radius:16px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{font-size:16px}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic UI","Segoe UI",Meiryo,system-ui,sans-serif;
+    line-height:1.6;padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 40px);
+  }
+  .app{max-width:560px;margin:0 auto;padding:0 16px}
+
+  header.top{
+    text-align:center;padding:22px 12px 18px;
+  }
+  header.top .ic{
+    width:54px;height:54px;border-radius:14px;background:linear-gradient(135deg,#2496ed,#1a73c7);
+    color:#fff;font-weight:800;font-size:30px;line-height:54px;display:inline-block;box-shadow:var(--shadow);
+  }
+  header.top h1{font-size:21px;margin:10px 0 2px}
+  header.top p{margin:0;color:var(--muted);font-size:13px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:18px 16px;margin:14px 0}
+  .card h2{font-size:15px;margin:0 0 14px;display:flex;align-items:center;gap:8px;color:var(--ink)}
+  .card h2 .b{width:4px;height:18px;border-radius:3px;background:var(--blue)}
+
+  label.field{display:block;margin:0 0 14px}
+  label.field .lab{display:block;font-size:13px;color:var(--muted);margin-bottom:5px;font-weight:600}
+  label.field .lab small{font-weight:400}
+  input[type="number"]{
+    width:100%;font-size:17px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;
+    background:#fafcfe;color:var(--ink);font-family:inherit;
+  }
+  input[type="number"]:focus{outline:none;border-color:var(--blue);background:#fff}
+  .unit-row{display:flex;align-items:center;gap:10px}
+  .unit-row input{flex:1}
+  .unit-row .u{font-size:14px;color:var(--muted);min-width:48px}
+
+  /* measurement table */
+  table.meas{width:100%;border-collapse:collapse;margin-top:4px}
+  table.meas th{font-size:12px;color:var(--muted);font-weight:600;padding:0 6px 8px;text-align:left}
+  table.meas td{padding:0 4px 8px}
+  table.meas td:first-child{padding-left:0}
+  table.meas input{font-size:16px;padding:10px 10px}
+  td.no{width:26px;text-align:center;color:var(--muted);font-size:13px;font-weight:600}
+  td.del{width:38px;text-align:center}
+  .delbtn{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--red);
+    font-size:17px;line-height:1;cursor:pointer}
+  .delbtn:disabled{opacity:.3;cursor:not-allowed}
+  .addbtn{margin-top:6px;width:100%;padding:11px;border:1.5px dashed var(--blue);border-radius:12px;background:#f1f8ff;
+    color:var(--blue-d);font-size:14px;font-weight:700;cursor:pointer}
+  .addbtn:disabled{opacity:.4;cursor:not-allowed}
+
+  .calcbtn{width:100%;padding:16px;border:none;border-radius:14px;background:linear-gradient(135deg,#2496ed,#1a73c7);
+    color:#fff;font-size:17px;font-weight:800;cursor:pointer;box-shadow:var(--shadow);margin-top:4px;letter-spacing:.03em}
+  .calcbtn:active{transform:translateY(1px)}
+
+  .err{background:#fdeded;border:1px solid #f3bcbc;color:#b02a2a;border-radius:12px;padding:11px 14px;font-size:14px;margin:10px 0;display:none}
+  .err.show{display:block}
+
+  /* results */
+  #results{display:none}
+  #results.show{display:block}
+  .cval{text-align:center;padding:10px 0 16px}
+  .cval .lbl{font-size:13px;color:var(--muted);font-weight:600}
+  .cval .big{font-size:54px;font-weight:800;line-height:1.05;color:var(--blue-d);letter-spacing:-.02em}
+  .cval .big span{font-size:20px;color:var(--muted);font-weight:600;margin-left:6px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+  .stat{background:#f7f9fc;border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+  .stat .k{font-size:11.5px;color:var(--muted);font-weight:600}
+  .stat .v{font-size:19px;font-weight:700;margin-top:2px}
+  .stat .v small{font-size:12px;color:var(--muted);font-weight:500}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;vertical-align:middle}
+  .badge.ok{background:#e3f6e9;color:var(--green)}
+  .badge.ng{background:#fdeaea;color:var(--red)}
+  .badge.warn{background:#fdf3e0;color:var(--amber)}
+
+  .chartwrap{margin-top:14px}
+  .chartwrap .ttl{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:6px}
+  canvas{width:100%;height:auto;display:block;background:#fafcfe;border:1px solid var(--line);border-radius:12px}
+
+  details.formula{margin:14px 0 0}
+  details.formula summary{cursor:pointer;font-size:13px;color:var(--blue-d);font-weight:700;padding:6px 0}
+  details.formula .body{font-size:13px;color:var(--muted);background:#f7f9fc;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:6px}
+  details.formula code{background:#eef3f9;padding:1px 6px;border-radius:5px;font-size:12.5px;color:#1a4a7a}
+  details.formula ul{margin:8px 0 0;padding-left:18px}
+  details.formula li{margin:3px 0}
+
+  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-height:1.7}
+  .tip{background:#f1f8ff;border:1px solid #cfe6fb;color:#1a4a7a;border-radius:12px;padding:11px 14px;font-size:12.5px;margin-top:14px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="top">
+    <div class="ic">C</div>
+    <h1>気密計算 C値</h1>
+    <p>JIS A 2201 準拠 ／ 測定データから自動計算</p>
+  </header>
+
+  <!-- 入力 -->
+  <div class="card">
+    <h2><span class="b"></span>建物・条件</h2>
+    <label class="field">
+      <span class="lab">延床面積 S <small>（外皮内の実質延べ床面積）</small></span>
+      <div class="unit-row">
+        <input id="area" type="number" inputmode="decimal" step="0.01" placeholder="例：120.50">
+        <span class="u">m²</span>
+      </div>
+    </label>
+    <label class="field" style="margin-bottom:0">
+      <span class="lab">空気密度 ρ <small>（温度補正なし・通常1.2）</small></span>
+      <div class="unit-row">
+        <input id="rho" type="number" inputmode="decimal" step="0.001" value="1.2">
+        <span class="u">kg/m³</span>
+      </div>
+    </label>
+  </div>
+
+  <!-- 測定データ -->
+  <div class="card">
+    <h2><span class="b"></span>測定データ <small style="font-weight:400;color:var(--muted);font-size:12px">（3〜5点）</small></h2>
+    <table class="meas">
+      <thead>
+        <tr><th></th><th>圧力差 ΔP (Pa)</th><th>通気量 Q (m³/h)</th><th></th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <button class="addbtn" id="addRow">＋ 測定点を追加</button>
+  </div>
+
+  <div class="err" id="err"></div>
+  <button class="calcbtn" id="calc">計算する</button>
+
+  <!-- 結果 -->
+  <div class="card" id="results">
+    <h2><span class="b"></span>計算結果</h2>
+    <div class="cval">
+      <div class="lbl">C値（相当隙間面積）</div>
+      <div class="big" id="rC">–<span>cm²/m²</span></div>
+    </div>
+    <div class="grid">
+      <div class="stat"><div class="k">総相当隙間面積 αA</div><div class="v" id="rAA">–<small> cm²</small></div></div>
+      <div class="stat"><div class="k">隙間特性値 n <span id="rNbadge"></span></div><div class="v" id="rN">–</div></div>
+      <div class="stat"><div class="k">通気率 a</div><div class="v" id="rA">–</div></div>
+      <div class="stat"><div class="k">決定係数 R² <span id="rR2badge"></span></div><div class="v" id="rR2">–</div></div>
+      <div class="stat"><div class="k">9.8Pa時の通気量 Q₉.₈</div><div class="v" id="rQ">–<small> m³/h</small></div></div>
+      <div class="stat"><div class="k">測定点数</div><div class="v" id="rNum">–</div></div>
+    </div>
+
+    <div class="chartwrap">
+      <div class="ttl">回帰グラフ（両対数：ΔP × Q）</div>
+      <canvas id="chart" width="700" height="460"></canvas>
+    </div>
+
+    <details class="formula">
+      <summary>計算式・根拠を見る</summary>
+      <div class="body">
+        <strong>JIS A 2201:2017 に基づく計算</strong>
+        <ul>
+          <li>通気特性式：<code>Q = a・ΔP^(1/n)</code></li>
+          <li>両対数の最小二乗法で傾き(1/n)と切片(log a)を求める</li>
+          <li>9.8Pa時の通気量：<code>Q₉.₈ = a・9.8^(1/n)</code></li>
+          <li>総相当隙間面積：<code>αA = 0.627・√ρ・Q₉.₈</code>（cm²）</li>
+          <li>C値：<code>C = αA / S</code>（小数点1桁・四捨五入）</li>
+          <li>n値の妥当性：一般に <code>1 ≤ n ≤ 2</code>（小さい隙間→1、単純開口→2）</li>
+        </ul>
+      </div>
+    </details>
+  </div>
+
+  <div class="tip">
+    📱 <strong>ホーム画面に追加</strong>：Safariで共有ボタン →「ホーム画面に追加」で、アプリのように使えます（オフラインでも動作）。
+  </div>
+
+  <footer>
+    気密計算 C値 ／ JIS A 2201:2017 準拠<br>
+    ※計算結果は参考値です。正式な判定は測定機関の値をご確認ください。
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const MIN=3, MAX=5;
+  const rowsEl=document.getElementById('rows');
+  const addBtn=document.getElementById('addRow');
+  const errEl=document.getElementById('err');
+
+  // 初期サンプル値（よくある測定例）
+  const seed=[[50,250],[40,215],[30,182],[20,145]];
+  let count=0;
+
+  function rowHTML(i, dp, q){
+    return '<tr>'+
+      '<td class="no">'+(i+1)+'</td>'+
+      '<td><input type="number" inputmode="decimal" step="0.1" class="dp" placeholder="ΔP"'+(dp!=null?' value="'+dp+'"':'')+'></td>'+
+      '<td><input type="number" inputmode="decimal" step="0.1" class="q" placeholder="Q"'+(q!=null?' value="'+q+'"':'')+'></td>'+
+      '<td class="del"><button class="delbtn" title="削除">−</button></td>'+
+    '</tr>';
+  }
+  function renumber(){
+    [...rowsEl.children].forEach((tr,i)=>{ tr.querySelector('.no').textContent=i+1; });
+    count=rowsEl.children.length;
+    addBtn.disabled = count>=MAX;
+    [...rowsEl.querySelectorAll('.delbtn')].forEach(b=>b.disabled = count<=MIN);
+  }
+  function addRow(dp,q){
+    if(rowsEl.children.length>=MAX) return;
+    const tmp=document.createElement('tbody');
+    tmp.innerHTML=rowHTML(rowsEl.children.length, dp, q);
+    const tr=tmp.firstChild;
+    tr.querySelector('.delbtn').addEventListener('click',()=>{ tr.remove(); renumber(); });
+    rowsEl.appendChild(tr);
+    renumber();
+  }
+  // 初期3行（サンプル入り）
+  addRow(seed[0][0],seed[0][1]);
+  addRow(seed[1][0],seed[1][1]);
+  addRow(seed[2][0],seed[2][1]);
+  addBtn.addEventListener('click',()=>addRow());
+
+  function showErr(m){ errEl.textContent=m; errEl.classList.add('show'); }
+  function clearErr(){ errEl.classList.remove('show'); }
+
+  function compute(){
+    clearErr();
+    const S=parseFloat(document.getElementById('area').value);
+    const rho=parseFloat(document.getElementById('rho').value);
+    if(!(S>0)){ showErr('延床面積 S に正しい数値を入力してください。'); return; }
+    if(!(rho>0)){ showErr('空気密度 ρ に正しい数値を入力してください。'); return; }
+
+    const pts=[];
+    [...rowsEl.children].forEach(tr=>{
+      const dp=parseFloat(tr.querySelector('.dp').value);
+      const q=parseFloat(tr.querySelector('.q').value);
+      if(dp>0 && q>0) pts.push({dp,q});
+    });
+    if(pts.length<MIN){ showErr('有効な測定点が'+MIN+'点以上必要です（ΔP・Q とも正の数）。'); return; }
+
+    // 両対数 最小二乗法： y=log10(Q), x=log10(ΔP), 傾き=1/n, 切片=log10(a)
+    const N=pts.length;
+    let sx=0,sy=0,sxx=0,sxy=0;
+    const xs=[],ys=[];
+    pts.forEach(p=>{ const x=Math.log10(p.dp), y=Math.log10(p.q); xs.push(x);ys.push(y); sx+=x;sy+=y;sxx+=x*x;sxy+=x*y; });
+    const denom=(N*sxx - sx*sx);
+    if(Math.abs(denom)<1e-12){ showErr('ΔPの値が同じため回帰できません。異なる圧力差で測定してください。'); return; }
+    const slope=(N*sxy - sx*sy)/denom;          // = 1/n
+    const intercept=(sy - slope*sx)/N;          // = log10(a)
+    if(!(slope>0)){ showErr('データの傾向が逆です。ΔPとQの対応を確認してください。'); return; }
+    const n=1/slope;
+    const a=Math.pow(10,intercept);
+
+    // R^2（決定係数：両対数空間）
+    const meanY=sy/N;
+    let ssRes=0, ssTot=0;
+    for(let i=0;i<N;i++){ const pred=intercept+slope*xs[i]; ssRes+=Math.pow(ys[i]-pred,2); ssTot+=Math.pow(ys[i]-meanY,2); }
+    const r2 = ssTot>0 ? 1-ssRes/ssTot : 1;
+
+    const q98=a*Math.pow(9.8,slope);            // = a*9.8^(1/n)
+    const alphaA=0.627*Math.sqrt(rho)*q98;      // cm²
+    const C=alphaA/S;
+
+    render({S,rho,pts,n,a,r2,q98,alphaA,C,slope,intercept});
+  }
+
+  function fmt(v,d){ return v.toLocaleString('ja-JP',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+
+  function render(r){
+    document.getElementById('rC').innerHTML = fmt(r.C,1)+'<span>cm²/m²</span>';
+    document.getElementById('rAA').innerHTML = fmt(r.alphaA,1)+'<small> cm²</small>';
+    document.getElementById('rN').textContent = fmt(r.n,2);
+    document.getElementById('rA').textContent = fmt(r.a,2);
+    document.getElementById('rR2').textContent = fmt(r.r2,4);
+    document.getElementById('rQ').innerHTML = fmt(r.q98,1)+'<small> m³/h</small>';
+    document.getElementById('rNum').textContent = r.pts.length+' 点';
+
+    // n値 妥当性バッジ（JIS：1〜2）
+    const nb=document.getElementById('rNbadge');
+    if(r.n>=1 && r.n<=2){ nb.className='badge ok'; nb.textContent='妥当 (1〜2)'; }
+    else { nb.className='badge ng'; nb.textContent='範囲外 要確認'; }
+
+    // R² バッジ
+    const rb=document.getElementById('rR2badge');
+    if(r.r2>=0.999){ rb.className='badge ok'; rb.textContent='良好'; }
+    else if(r.r2>=0.99){ rb.className='badge warn'; rb.textContent='やや注意'; }
+    else { rb.className='badge ng'; rb.textContent='要確認'; }
+
+    drawChart(r);
+    document.getElementById('results').classList.add('show');
+    document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'});
+  }
+
+  function drawChart(r){
+    const cv=document.getElementById('chart');
+    const ctx=cv.getContext('2d');
+    const W=cv.width, H=cv.height;
+    ctx.clearRect(0,0,W,H);
+    const padL=64, padR=22, padT=18, padB=46;
+    const plotW=W-padL-padR, plotH=H-padT-padB;
+
+    // データ範囲（両対数）。9.8Paも含める。
+    const dps=r.pts.map(p=>p.dp).concat([9.8]);
+    const qs=r.pts.map(p=>p.q).concat([r.q98]);
+    let xMin=Math.log10(Math.min(...dps)), xMax=Math.log10(Math.max(...dps));
+    let yMin=Math.log10(Math.min(...qs)), yMax=Math.log10(Math.max(...qs));
+    const xpad=(xMax-xMin)*0.12||0.2, ypad=(yMax-yMin)*0.12||0.2;
+    xMin-=xpad; xMax+=xpad; yMin-=ypad; yMax+=ypad;
+
+    const X=x=>padL+(x-xMin)/(xMax-xMin)*plotW;
+    const Y=y=>padT+plotH-(y-yMin)/(yMax-yMin)*plotH;
+
+    // グリッド（10^kの目盛り＋中間）
+    ctx.font='12px sans-serif'; ctx.textBaseline='middle';
+    function ticks(min,max){ const t=[]; const lo=Math.floor(min),hi=Math.ceil(max);
+      for(let k=lo;k<=hi;k++){ [1,2,5].forEach(m=>{ const v=Math.log10(m*Math.pow(10,k)); if(v>=min&&v<=max) t.push({v,label:(m*Math.pow(10,k))}); }); } return t; }
+    ctx.strokeStyle='#e6ecf3'; ctx.fillStyle='#7a8aa0'; ctx.lineWidth=1;
+    ctx.textAlign='right';
+    ticks(yMin,yMax).forEach(t=>{ const py=Y(t.v); ctx.beginPath();ctx.moveTo(padL,py);ctx.lineTo(W-padR,py);ctx.stroke();
+      ctx.fillText(t.label>=1000?(t.label/1000)+'k':t.label, padL-8, py); });
+    ctx.textAlign='center'; ctx.textBaseline='top';
+    ticks(xMin,xMax).forEach(t=>{ const px=X(t.v); ctx.beginPath();ctx.moveTo(px,padT);ctx.lineTo(px,padT+plotH);ctx.stroke();
+      ctx.fillText(t.label, px, padT+plotH+8); });
+
+    // 軸枠
+    ctx.strokeStyle='#c3cedb'; ctx.lineWidth=1.2;
+    ctx.strokeRect(padL,padT,plotW,plotH);
+
+    // 軸ラベル
+    ctx.fillStyle='#5b6b80'; ctx.font='bold 12px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='top';
+    ctx.fillText('圧力差 ΔP (Pa)', padL+plotW/2, H-18);
+    ctx.save(); ctx.translate(16,padT+plotH/2); ctx.rotate(-Math.PI/2);
+    ctx.textBaseline='middle'; ctx.fillText('通気量 Q (m³/h)',0,0); ctx.restore();
+
+    // 回帰直線（両対数で直線）
+    ctx.strokeStyle='#2496ed'; ctx.lineWidth=2.5;
+    ctx.beginPath();
+    const yAtXmin=r.intercept+r.slope*xMin, yAtXmax=r.intercept+r.slope*xMax;
+    ctx.moveTo(X(xMin),Y(yAtXmin)); ctx.lineTo(X(xMax),Y(yAtXmax)); ctx.stroke();
+
+    // 9.8Pa 補助線とマーカー
+    const x98=Math.log10(9.8);
+    if(x98>=xMin&&x98<=xMax){
+      ctx.strokeStyle='#c98a16'; ctx.setLineDash([5,4]); ctx.lineWidth=1.3;
+      ctx.beginPath(); ctx.moveTo(X(x98),padT); ctx.lineTo(X(x98),padT+plotH); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle='#c98a16'; ctx.font='11px sans-serif'; ctx.textAlign='left'; ctx.textBaseline='top';
+      ctx.fillText('9.8Pa', X(x98)+4, padT+4);
+      const py98=Y(Math.log10(r.q98));
+      ctx.fillStyle='#c98a16'; ctx.beginPath(); ctx.arc(X(x98),py98,5,0,7); ctx.fill();
+    }
+
+    // 測定点
+    ctx.fillStyle='#1a73c7'; ctx.strokeStyle='#fff'; ctx.lineWidth=2;
+    r.pts.forEach(p=>{ const px=X(Math.log10(p.dp)), py=Y(Math.log10(p.q));
+      ctx.beginPath(); ctx.arc(px,py,5.5,0,7); ctx.fill(); ctx.stroke(); });
+  }
+
+  document.getElementById('calc').addEventListener('click',compute);
+})();
+</script>
+</body>
+</html>
