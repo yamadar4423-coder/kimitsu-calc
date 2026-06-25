@@ -172,18 +172,11 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 <!-- 入力 -->
 <div class="card">
 <h2><span class="b"></span>建物・条件</h2>
-<label class="field">
+<label class="field" style="margin-bottom:0">
 <span class="lab">延床面積 S <small>（外皮内の実質延べ床面積）</small></span>
 <div class="unit-row">
 <input id="area" type="number" inputmode="decimal" step="0.01" placeholder="例：120.50">
 <span class="u">m²</span>
-</div>
-</label>
-<label class="field" style="margin-bottom:0">
-<span class="lab">空気密度 ρ <small>（温度補正なし・通常1.2）</small></span>
-<div class="unit-row">
-<input id="rho" type="number" inputmode="decimal" step="0.001" value="1.2">
-<span class="u">kg/m³</span>
 </div>
 </label>
 </div>
@@ -240,7 +233,7 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
     <li>通気特性式：<code>Q = a・ΔP^(1/n)</code></li>
     <li>両対数の最小二乗法で傾き(1/n)と切片(log a)を求める</li>
     <li>9.8Pa時の通気量：<code>Q₉.₈ = a・9.8^(1/n)</code></li>
-    <li>総相当隙間面積：<code>αA = 0.627・√ρ・Q₉.₈</code>（cm²）</li>
+    <li>総相当隙間面積：<code>αA = 0.627・√ρ・Q₉.₈</code>（cm²、空気密度ρは標準値1.2 kg/m³で固定）</li>
     <li>C値：<code>C = αA / S</code>（小数点1桁・四捨五入）</li>
     <li>n値の妥当性：一般に <code>1 ≤ n ≤ 2</code></li>
     </ul>
@@ -325,9 +318,8 @@ function clearErr(){ errEl.classList.remove('show'); }
 function compute(){
 clearErr();
 const S=parseFloat(document.getElementById('area').value);
-const rho=parseFloat(document.getElementById('rho').value);
+const rho=1.2; // 空気密度は標準値1.2 kg/m³に固定
 if(!(S>0)){ showErr('延床面積 S に正しい数値を入力してください。'); return; }
-if(!(rho>0)){ showErr('空気密度 ρ に正しい数値を入力してください。'); return; }
 const pts=[];
 [...rowsEl.children].forEach(tr=>{
 const dp=parseFloat(tr.querySelector('.dp').value);
