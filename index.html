@@ -59,9 +59,14 @@ td.del{width:38px;text-align:center}
 .delbtn{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--red);
 font-size:17px;line-height:1;cursor:pointer}
 .delbtn:disabled{opacity:.3;cursor:not-allowed}
-.addbtn{margin-top:6px;width:100%;padding:11px;border:1.5px dashed var(--blue);border-radius:12px;background:#f1f8ff;
+.btnrow{display:flex;gap:10px;margin-top:6px}
+.addbtn{flex:1;padding:11px;border:1.5px dashed var(--blue);border-radius:12px;background:#f1f8ff;
 color:var(--blue-d);font-size:14px;font-weight:700;cursor:pointer}
 .addbtn:disabled{opacity:.4;cursor:not-allowed}
+.resetbtn{padding:11px 16px;border:1.5px solid var(--line);border-radius:12px;background:#fff;
+color:var(--muted);font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
+.resetbtn:active{background:#f2f5f9}
+.temphint{font-size:12px;color:var(--blue-d);font-weight:600;margin-top:5px;min-height:1em}
 .calcbtn{width:100%;padding:16px;border:none;border-radius:14px;background:linear-gradient(135deg,#2496ed,#1a73c7);
 color:#fff;font-size:17px;font-weight:800;cursor:pointer;box-shadow:var(--shadow);margin-top:4px;letter-spacing:.03em}
 .calcbtn:active{transform:translateY(1px)}
@@ -172,25 +177,50 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 <!-- 入力 -->
 <div class="card">
 <h2><span class="b"></span>建物・条件</h2>
-<label class="field" style="margin-bottom:0">
+<label class="field">
 <span class="lab">延床面積 S <small>（外皮内の実質延べ床面積）</small></span>
 <div class="unit-row">
 <input id="area" type="number" inputmode="decimal" step="0.01" placeholder="例：120.50">
 <span class="u">m²</span>
 </div>
 </label>
+<label class="field">
+<span class="lab">室温 t <small>（任意・入力すると空気密度ρを温度補正。未入力なら1.2固定）</small></span>
+<div class="unit-row">
+<input id="temp" type="number" inputmode="decimal" step="0.1" placeholder="例：20">
+<span class="u">℃</span>
+</div>
+<div class="temphint" id="temphint"></div>
+</label>
+<label class="field">
+<span class="lab">決定係数 R² の合格閾値 <small>（これ以上で「合格」判定）</small></span>
+<div class="unit-row">
+<input id="thr" type="number" inputmode="decimal" step="0.001" min="0" max="1" value="0.98">
+<span class="u">R²≧</span>
+</div>
+</label>
+<label class="field" style="margin-bottom:0">
+<span class="lab">測定回 <small>（任意・何回目の測定か）</small></span>
+<div class="unit-row">
+<input id="run" type="number" inputmode="numeric" step="1" min="1" placeholder="例：1">
+<span class="u">回目</span>
+</div>
+</label>
 </div>
 
 <!-- 測定データ -->
 <div class="card">
-<h2><span class="b"></span>測定データ <small style="font-weight:400;color:var(--muted);font-size:12px">（3〜5点）</small></h2>
+<h2><span class="b"></span>測定データ <small style="font-weight:400;color:var(--muted);font-size:12px">（3〜10点）</small></h2>
 <table class="meas">
 <thead>
 <tr><th></th><th>圧力差 ΔP (Pa)</th><th>通気量 Q (m³/h)</th><th></th></tr>
 </thead>
 <tbody id="rows"></tbody>
 </table>
+<div class="btnrow">
 <button class="addbtn" id="addRow">＋ 測定点を追加</button>
+<button class="resetbtn" id="resetRow" type="button">↺ 一括リセット</button>
+</div>
 </div>
 
 <div class="err" id="err"></div>
@@ -209,6 +239,7 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
       </div>
     </div>
 
+    <div id="runInfo" style="display:none;text-align:center;font-size:13px;color:var(--muted);font-weight:600;margin:2px 0 -4px"></div>
     <div class="cval">
     <div class="lbl">C値（相当隙間面積）</div>
     <div class="big" id="rC">–<span>cm²/m²</span></div>
@@ -233,9 +264,11 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
     <li>通気特性式：<code>Q = a・ΔP^(1/n)</code></li>
     <li>両対数の最小二乗法で傾き(1/n)と切片(log a)を求める</li>
     <li>9.8Pa時の通気量：<code>Q₉.₈ = a・9.8^(1/n)</code></li>
-    <li>総相当隙間面積：<code>αA = 0.627・√ρ・Q₉.₈</code>（cm²、空気密度ρは標準値1.2 kg/m³で固定）</li>
+    <li>総相当隙間面積：<code>αA = 0.627・√ρ・Q₉.₈</code>（cm²、ρ=空気密度）</li>
+    <li>空気密度：室温 t 入力時は <code>ρ = 1.293・273.15/(273.15+t)</code> で補正。未入力なら標準値 1.2 kg/m³</li>
     <li>C値：<code>C = αA / S</code>（小数点1桁・四捨五入）</li>
     <li>n値の妥当性：一般に <code>1 ≤ n ≤ 2</code></li>
+    <li>R²の判定：入力した合格閾値以上で「合格」</li>
     </ul>
     </div>
     </details>
@@ -276,11 +309,27 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 (function(){
 "use strict";
 
-const MIN=3, MAX=5;
+const MIN=3, MAX=10, INIT=5;
 const rowsEl=document.getElementById('rows');
 const addBtn=document.getElementById('addRow');
+const resetBtn=document.getElementById('resetRow');
 const errEl=document.getElementById('err');
-const seed=[[50,250],[40,215],[30,182],[20,145]];
+const tempEl=document.getElementById('temp');
+const tempHint=document.getElementById('temphint');
+
+// 室温 → 空気密度 ρ（未入力は1.2）
+function currentRho(){
+  const t=parseFloat(tempEl.value);
+  if(isFinite(t) && (273.15+t)>0) return 1.293*273.15/(273.15+t);
+  return 1.2;
+}
+function updateTempHint(){
+  const t=parseFloat(tempEl.value);
+  if(isFinite(t) && (273.15+t)>0){ tempHint.textContent='→ 補正後の空気密度 ρ = '+currentRho().toFixed(3)+' kg/m³'; }
+  else { tempHint.textContent='→ 空気密度 ρ = 1.200 kg/m³（標準値）'; }
+}
+tempEl.addEventListener('input', updateTempHint);
+updateTempHint();
 
 function rowHTML(i, dp, q){
 return '<tr>'+
@@ -307,10 +356,17 @@ rowsEl.appendChild(tr);
 renumber();
 }
 
-addRow(seed[0][0],seed[0][1]);
-addRow(seed[1][0],seed[1][1]);
-addRow(seed[2][0],seed[2][1]);
+for(let i=0;i<INIT;i++) addRow();
 addBtn.addEventListener('click',()=>addRow());
+
+// 圧力・通気量の一括リセット（延床面積・室温・閾値・測定回は保持）
+function resetMeas(){
+  rowsEl.innerHTML='';
+  for(let i=0;i<INIT;i++) addRow();
+  clearErr();
+  document.getElementById('results').classList.remove('show');
+}
+resetBtn.addEventListener('click', resetMeas);
 
 function showErr(m){ errEl.textContent=m; errEl.classList.add('show'); }
 function clearErr(){ errEl.classList.remove('show'); }
@@ -318,8 +374,14 @@ function clearErr(){ errEl.classList.remove('show'); }
 function compute(){
 clearErr();
 const S=parseFloat(document.getElementById('area').value);
-const rho=1.2; // 空気密度は標準値1.2 kg/m³に固定
+const rho=currentRho(); // 室温入力時は温度補正、未入力は1.2
 if(!(S>0)){ showErr('延床面積 S に正しい数値を入力してください。'); return; }
+// 決定係数の合格閾値（0〜1、未入力・範囲外は既定0.98）
+let thr=parseFloat(document.getElementById('thr').value);
+if(!(thr>0 && thr<=1)) thr=0.98;
+// 測定回（任意）
+const runV=(document.getElementById('run').value||'').trim();
+const run = runV!=='' ? runV : null;
 const pts=[];
 [...rowsEl.children].forEach(tr=>{
 const dp=parseFloat(tr.querySelector('.dp').value);
@@ -345,12 +407,15 @@ const r2 = ssTot>0 ? 1-ssRes/ssTot : 1;
 const q98=a*Math.pow(9.8,slope);
 const alphaA=0.627*Math.sqrt(rho)*q98;
 const C=alphaA/S;
-render({S,rho,pts,n,a,r2,q98,alphaA,C,slope,intercept});
+render({S,rho,pts,n,a,r2,q98,alphaA,C,slope,intercept,thr,run});
 }
 
 function fmt(v,d){ return v.toLocaleString('ja-JP',{minimumFractionDigits:d,maximumFractionDigits:d}); }
 
 function render(r){
+const runEl=document.getElementById('runInfo');
+if(r.run){ runEl.textContent='測定回：'+r.run+' 回目'; runEl.style.display='block'; }
+else { runEl.style.display='none'; }
 document.getElementById('rC').innerHTML = fmt(r.C,1)+'<span>cm²/m²</span>';
 document.getElementById('rAA').innerHTML = fmt(r.alphaA,1)+'<small> cm²</small>';
 document.getElementById('rN').textContent = fmt(r.n,2);
@@ -362,9 +427,8 @@ const nb=document.getElementById('rNbadge');
 if(r.n>=1 && r.n<=2){ nb.className='badge ok'; nb.textContent='妥当 (1〜2)'; }
 else { nb.className='badge ng'; nb.textContent='範囲外 要確認'; }
 const rb=document.getElementById('rR2badge');
-if(r.r2>=0.999){ rb.className='badge ok'; rb.textContent='良好'; }
-else if(r.r2>=0.99){ rb.className='badge warn'; rb.textContent='やや注意'; }
-else { rb.className='badge ng'; rb.textContent='要確認'; }
+if(r.r2>=r.thr){ rb.className='badge ok'; rb.textContent='合格 (≧'+fmt(r.thr,3)+')'; }
+else { rb.className='badge ng'; rb.textContent='要確認 (<'+fmt(r.thr,3)+')'; }
 drawChart(r);
 document.getElementById('results').classList.add('show');
 document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'});
