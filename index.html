@@ -206,9 +206,15 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 </div>
 </label>
 <label class="field">
-<span class="lab">室温 t <small>（任意・入力すると空気密度ρを温度補正。未入力なら1.2固定）</small></span>
+<span class="lab">温度 <small>（任意・入力すると空気密度ρを温度補正。外気を優先。未入力なら1.2固定）</small></span>
 <div class="unit-row">
-<input id="temp" type="number" inputmode="decimal" step="0.1" placeholder="例：20">
+<span class="u" style="min-width:36px">室内</span>
+<input id="tempIn" type="number" inputmode="decimal" step="0.1" placeholder="例：20">
+<span class="u">℃</span>
+</div>
+<div class="unit-row" style="margin-top:8px">
+<span class="u" style="min-width:36px">外気</span>
+<input id="tempOut" type="number" inputmode="decimal" step="0.1" placeholder="例：5">
 <span class="u">℃</span>
 </div>
 <div class="temphint" id="temphint"></div>
@@ -286,7 +292,7 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
     <li>両対数の最小二乗法で傾き(1/n)と切片(log a)を求める</li>
     <li>9.8Pa時の通気量：<code>Q₉.₈ = a・9.8^(1/n)</code></li>
     <li>総相当隙間面積：<code>αA = 0.627・√ρ・Q₉.₈</code>（cm²、ρ=空気密度）</li>
-    <li>空気密度：室温 t 入力時は <code>ρ = 1.293・273.15/(273.15+t)</code> で補正。未入力なら標準値 1.2 kg/m³</li>
+    <li>空気密度：室内・外気温の入力時は <code>ρ = 1.293・273.15/(273.15+t)</code> で補正（外気を優先）。未入力なら標準値 1.2 kg/m³</li>
     <li>C値：<code>C = αA / S</code>（小数点1桁・四捨五入）</li>
     <li>n値の妥当性：一般に <code>1 ≤ n ≤ 2</code></li>
     <li>R²の判定：入力した合格閾値以上で「合格」</li>
@@ -335,21 +341,35 @@ const rowsEl=document.getElementById('rows');
 const addBtn=document.getElementById('addRow');
 const resetBtn=document.getElementById('resetRow');
 const errEl=document.getElementById('err');
-const tempEl=document.getElementById('temp');
+const tempInEl=document.getElementById('tempIn');
+const tempOutEl=document.getElementById('tempOut');
 const tempHint=document.getElementById('temphint');
 
 // 室温 → 空気密度 ρ（未入力は1.2）
+// 補正に使う温度：外気を優先し、なければ室内。両方未入力ならNaN
+function rhoTemp(){
+  const tOut=parseFloat(tempOutEl.value);
+  if(isFinite(tOut)) return tOut;
+  const tIn=parseFloat(tempInEl.value);
+  if(isFinite(tIn)) return tIn;
+  return NaN;
+}
 function currentRho(){
-  const t=parseFloat(tempEl.value);
+  const t=rhoTemp();
   if(isFinite(t) && (273.15+t)>0) return 1.293*273.15/(273.15+t);
   return 1.2;
 }
 function updateTempHint(){
-  const t=parseFloat(tempEl.value);
-  if(isFinite(t) && (273.15+t)>0){ tempHint.textContent='→ 補正後の空気密度 ρ = '+currentRho().toFixed(3)+' kg/m³'; }
-  else { tempHint.textContent='→ 空気密度 ρ = 1.200 kg/m³（標準値）'; }
+  const t=rhoTemp();
+  if(isFinite(t) && (273.15+t)>0){
+    const used=isFinite(parseFloat(tempOutEl.value))?'外気':'室内';
+    tempHint.textContent='→ 補正後の空気密度 ρ = '+currentRho().toFixed(3)+' kg/m³（'+used+'温を使用）';
+  } else {
+    tempHint.textContent='→ 空気密度 ρ = 1.200 kg/m³（標準値）';
+  }
 }
-tempEl.addEventListener('input', updateTempHint);
+tempInEl.addEventListener('input', updateTempHint);
+tempOutEl.addEventListener('input', updateTempHint);
 updateTempHint();
 
 function rowHTML(i, dp, q){
@@ -380,7 +400,7 @@ renumber();
 for(let i=0;i<INIT;i++) addRow();
 addBtn.addEventListener('click',()=>addRow());
 
-// 圧力・通気量の一括リセット（延床面積・室温・閾値・測定回は保持）
+// 圧力・通気量の一括リセット（延床面積・温度・閾値・測定回は保持）
 function resetMeas(){
   rowsEl.innerHTML='';
   for(let i=0;i<INIT;i++) addRow();
@@ -437,7 +457,7 @@ function render(r){
 const runEl=document.getElementById('runInfo');
 if(r.run){ runEl.textContent='測定回：'+r.run+' 回目'; runEl.style.display='block'; }
 else { runEl.style.display='none'; }
-document.getElementById('rC').innerHTML = fmt(r.C,1)+'<span>cm²/m²</span>';
+document.getElementById('rC').innerHTML = fmt(r.C,2)+'<span>cm²/m²</span>';
 document.getElementById('rAA').innerHTML = fmt(r.alphaA,1)+'<small> cm²</small>';
 document.getElementById('rN').textContent = fmt(r.n,2);
 document.getElementById('rA').textContent = fmt(r.a,2);
