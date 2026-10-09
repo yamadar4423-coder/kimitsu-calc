@@ -87,6 +87,11 @@ color:var(--blue-d);font-size:14px;font-weight:700;cursor:pointer}
 .resetbtn{padding:11px 16px;border:1.5px solid var(--line);border-radius:12px;background:#fff;
 color:var(--muted);font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
 .resetbtn:active{background:#f2f5f9}
+.clearbtn{width:100%;padding:12px;margin-top:10px;border:1.5px solid var(--line);border-radius:12px;background:#fff;
+color:var(--muted);font-size:14px;font-weight:700;cursor:pointer}
+.clearbtn:active{background:#f2f5f9}
+.restored{background:#f1f8ff;border:1px solid #cfe6fb;color:#1a4a7a;border-radius:12px;padding:10px 14px;font-size:13px;margin:0 0 4px;display:none}
+.restored.show{display:block}
 .temphint{font-size:12px;color:var(--blue-d);font-weight:600;margin-top:5px;min-height:1em}
 .calcbtn{width:100%;padding:16px;border:none;border-radius:14px;background:linear-gradient(135deg,#2496ed,#1a73c7);
 color:#fff;font-size:17px;font-weight:800;cursor:pointer;box-shadow:var(--shadow);margin-top:4px;letter-spacing:.03em}
@@ -195,6 +200,8 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 <p>JIS A 2201 準拠 ／ 測定データから自動計算</p>
 </header>
 
+<div class="restored" id="restored"></div>
+
 <!-- 入力 -->
 <div class="card">
 <h2><span class="b"></span>建物・条件</h2>
@@ -252,6 +259,7 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 
 <div class="err" id="err"></div>
 <button class="calcbtn" id="calc">計算する</button>
+<button class="clearbtn" id="clearAll" type="button">🗑 全部消す（次の現場へ）</button>
 
 <!-- 結果 -->
 <div class="card" id="results">
@@ -307,7 +315,8 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 </div>
 
 <div class="tip">
-📱 <strong>ホーム画面に追加</strong>：Safariで共有ボタン →「ホーム画面に追加」で、アプリのように使えます（オフラインでも動作）。
+📱 <strong>ホーム画面に追加</strong>：Safariで共有ボタン →「ホーム画面に追加」で、アプリのように使えます（オフラインでも動作）。<br>
+💾 入力した値はこの端末の中だけに保存され、画面を閉じても残ります（外部には送りません）。消すときは「一括リセット」または「全部消す」を押してください。
 </div>
 
 <footer>
@@ -392,13 +401,12 @@ if(rowsEl.children.length>=MAX) return;
 const tmp=document.createElement('tbody');
 tmp.innerHTML=rowHTML(rowsEl.children.length, dp, q);
 const tr=tmp.firstChild;
-tr.querySelector('.delbtn').addEventListener('click',()=>{ tr.remove(); renumber(); });
+tr.querySelector('.delbtn').addEventListener('click',()=>{ tr.remove(); renumber(); calcDone=false; saveInputs(); });
 rowsEl.appendChild(tr);
 renumber();
 }
 
-for(let i=0;i<INIT;i++) addRow();
-addBtn.addEventListener('click',()=>addRow());
+addBtn.addEventListener('click',()=>{ addRow(); saveInputs(); });
 
 // 圧力・通気量の一括リセット（延床面積・温度・閾値・測定回は保持）
 function resetMeas(){
@@ -406,13 +414,64 @@ function resetMeas(){
   for(let i=0;i<INIT;i++) addRow();
   clearErr();
   document.getElementById('results').classList.remove('show');
+  calcDone=false; saveInputs();
 }
 resetBtn.addEventListener('click', resetMeas);
+
+// ── 入力の控え（この端末の中だけに保存・外部へは送らない） ──
+// スマホのブラウザは裏に回った画面を捨てて読み込み直すことがあるため、入力のたびに控えを取り、開いたときに戻す。
+// 消えるのは「一括リセット」（ΔP・Qだけ）と「全部消す」（R²の合格閾値以外すべて）を押したときだけ。
+const STORE_KEY='kimitsu-calc:inputs:v1';
+const FIELD_IDS=['area','tempIn','tempOut','thr','run'];
+let calcDone=false; // 最後の操作が計算の成功で、その後に入力を変えていないか
+function saveInputs(){
+  const s={at:Date.now(), calc:calcDone, rows:[]};
+  FIELD_IDS.forEach(id=>{ s[id]=document.getElementById(id).value; });
+  [...rowsEl.children].forEach(tr=>{ s.rows.push([tr.querySelector('.dp').value, tr.querySelector('.q').value]); });
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(s)); }catch(e){}
+}
+function restoreInputs(){
+  let s=null;
+  try{ s=JSON.parse(localStorage.getItem(STORE_KEY)||'null'); }catch(e){}
+  if(!s || !Array.isArray(s.rows) || s.rows.length<MIN){ for(let i=0;i<INIT;i++) addRow(); return; }
+  FIELD_IDS.forEach(id=>{ if(typeof s[id]==='string') document.getElementById(id).value=s[id]; });
+  calcDone=!!s.calc;
+  s.rows.slice(0,MAX).forEach(r=>{
+    addRow();
+    const tr=rowsEl.lastElementChild;
+    tr.querySelector('.dp').value=String(r[0]??'');
+    tr.querySelector('.q').value=String(r[1]??'');
+  });
+  updateTempHint();
+  const any=['area','tempIn','tempOut','run'].some(id=>s[id]) || s.rows.some(r=>r[0]!==''||r[1]!=='');
+  if(any){
+    const d=new Date(s.at);
+    const when=(d.getMonth()+1)+'/'+d.getDate()+' '+d.getHours()+':'+String(d.getMinutes()).padStart(2,'0');
+    const el=document.getElementById('restored');
+    el.textContent='前回の入力（'+when+'）を戻しました。別の現場なら下の「全部消す」で消してください。';
+    el.classList.add('show');
+  }
+  if(s.calc) compute(false);
+}
+document.addEventListener('input', e=>{
+  if(e.target.tagName!=='INPUT') return;
+  calcDone=false;
+  saveInputs();
+});
+// 全部消す（次の現場へ）：R²の合格閾値は設定なので残す
+document.getElementById('clearAll').addEventListener('click', ()=>{
+  if(!confirm('入力した内容をすべて消します（R²の合格閾値は残します）。よろしいですか？')) return;
+  ['area','tempIn','tempOut','run'].forEach(id=>{ document.getElementById(id).value=''; });
+  updateTempHint();
+  document.getElementById('restored').classList.remove('show');
+  resetMeas();
+  window.scrollTo(0,0);
+});
 
 function showErr(m){ errEl.textContent=m; errEl.classList.add('show'); }
 function clearErr(){ errEl.classList.remove('show'); }
 
-function compute(){
+function compute(scroll){
 clearErr();
 const S=parseFloat(document.getElementById('area').value);
 const rho=currentRho(); // 室温入力時は温度補正、未入力は1.2
@@ -448,12 +507,14 @@ const r2 = ssTot>0 ? 1-ssRes/ssTot : 1;
 const q98=a*Math.pow(9.8,slope);
 const alphaA=0.627*Math.sqrt(rho)*q98;
 const C=alphaA/S;
-render({S,rho,pts,n,a,r2,q98,alphaA,C,slope,intercept,thr,run});
+render({S,rho,pts,n,a,r2,q98,alphaA,C,slope,intercept,thr,run}, scroll!==false);
+calcDone=true;
+if(scroll!==false) saveInputs(); // 開いたときの再計算では控えの時刻を変えない
 }
 
 function fmt(v,d){ return v.toLocaleString('ja-JP',{minimumFractionDigits:d,maximumFractionDigits:d}); }
 
-function render(r){
+function render(r, scroll){
 const runEl=document.getElementById('runInfo');
 if(r.run){ runEl.textContent='測定回：'+r.run+' 回目'; runEl.style.display='block'; }
 else { runEl.style.display='none'; }
@@ -472,7 +533,7 @@ if(r.r2>=r.thr){ rb.className='badge ok'; rb.textContent='合格 (≧'+fmt(r.thr
 else { rb.className='badge ng'; rb.textContent='要確認 (<'+fmt(r.thr,3)+')'; }
 drawChart(r);
 document.getElementById('results').classList.add('show');
-document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'});
+if(scroll) document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function drawChart(r){
@@ -525,7 +586,8 @@ r.pts.forEach(p=>{ const px=X(Math.log10(p.dp)), py=Y(Math.log10(p.q));
 ctx.beginPath(); ctx.arc(px,py,5.5,0,7); ctx.fill(); ctx.stroke(); });
 }
 
-document.getElementById('calc').addEventListener('click', compute);
+document.getElementById('calc').addEventListener('click', ()=>compute(true));
+restoreInputs();
 
 // ── 画像保存 ──
 document.getElementById('img-btn').addEventListener('click', captureImage);
