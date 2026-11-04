@@ -98,6 +98,8 @@ color:#fff;font-size:17px;font-weight:800;cursor:pointer;box-shadow:var(--shadow
 .calcbtn:active{transform:translateY(1px)}
 .err{background:#fdeded;border:1px solid #f3bcbc;color:#b02a2a;border-radius:12px;padding:11px 14px;font-size:14px;margin:10px 0;display:none}
 .err.show{display:block}
+.stale-note{background:#fff8e6;border:1px solid #f0d48a;color:#7a5600;border-radius:12px;padding:11px 14px;font-size:14px;margin:10px 0;display:none}
+.stale-note.show{display:block}
 #results{display:none}
 #results.show{display:block}
 .cval{text-align:center;padding:10px 0 16px}
@@ -258,6 +260,7 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 </div>
 
 <div class="err" id="err"></div>
+<div class="stale-note" id="staleNote">入力が変わったので、前の結果を消しました。「計算する」を押すと出し直します。</div>
 <button class="calcbtn" id="calc">計算する</button>
 <button class="clearbtn" id="clearAll" type="button">🗑 全部消す（次の現場へ）</button>
 
@@ -401,7 +404,7 @@ if(rowsEl.children.length>=MAX) return;
 const tmp=document.createElement('tbody');
 tmp.innerHTML=rowHTML(rowsEl.children.length, dp, q);
 const tr=tmp.firstChild;
-tr.querySelector('.delbtn').addEventListener('click',()=>{ tr.remove(); renumber(); calcDone=false; saveInputs(); });
+tr.querySelector('.delbtn').addEventListener('click',()=>{ tr.remove(); renumber(); calcDone=false; dropStaleResults(); saveInputs(); });
 rowsEl.appendChild(tr);
 renumber();
 }
@@ -409,11 +412,22 @@ renumber();
 addBtn.addEventListener('click',()=>{ addRow(); saveInputs(); });
 
 // 圧力・通気量の一括リセット（延床面積・温度・閾値・測定回は保持）
+// 今の入力の結果ではないものを画面に残さない（現場で古い数値を記録しないため）
+function hideResults(){
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('staleNote').classList.remove('show');
+}
+function dropStaleResults(){
+  const res=document.getElementById('results');
+  if(!res.classList.contains('show')) return;
+  hideResults();
+  document.getElementById('staleNote').classList.add('show');
+}
 function resetMeas(){
   rowsEl.innerHTML='';
   for(let i=0;i<INIT;i++) addRow();
   clearErr();
-  document.getElementById('results').classList.remove('show');
+  hideResults();
   calcDone=false; saveInputs();
 }
 resetBtn.addEventListener('click', resetMeas);
@@ -456,6 +470,7 @@ function restoreInputs(){
 document.addEventListener('input', e=>{
   if(e.target.tagName!=='INPUT') return;
   calcDone=false;
+  dropStaleResults();
   saveInputs();
 });
 // 全部消す（次の現場へ）：R²の合格閾値は設定なので残す
@@ -473,6 +488,7 @@ function clearErr(){ errEl.classList.remove('show'); }
 
 function compute(scroll){
 clearErr();
+hideResults();
 const S=parseFloat(document.getElementById('area').value);
 const rho=currentRho(); // 室温入力時は温度補正、未入力は1.2
 if(!(S>0)){ showErr('延床面積 S に正しい数値を入力してください。'); return; }
