@@ -62,11 +62,11 @@ padding:18px 16px;margin:14px 0}
 label.field{display:block;margin:0 0 14px}
 label.field .lab{display:block;font-size:13px;color:var(--muted);margin-bottom:5px;font-weight:600}
 label.field .lab small{font-weight:400}
-input[type="number"]{
+input[data-calc]{
 width:100%;font-size:17px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;
 background:#fafcfe;color:var(--ink);font-family:inherit;
 }
-input[type="number"]:focus{outline:none;border-color:var(--blue);background:#fff}
+input[data-calc]:focus{outline:none;border-color:var(--blue);background:#fff}
 .unit-row{display:flex;align-items:center;gap:10px}
 .unit-row input{flex:1}
 .unit-row .u{font-size:14px;color:var(--muted);min-width:48px}
@@ -210,7 +210,7 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 <label class="field">
 <span class="lab">延床面積 S <small>（外皮内の実質延べ床面積）</small></span>
 <div class="unit-row">
-<input id="area" type="number" inputmode="decimal" step="0.01" placeholder="例：120.50">
+<input id="area" type="text" data-calc placeholder="例：120.50">
 <span class="u">m²</span>
 </div>
 </label>
@@ -218,12 +218,12 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 <span class="lab">温度 <small>（任意・入力すると空気密度ρを温度補正。外気を優先。未入力なら1.2固定）</small></span>
 <div class="unit-row">
 <span class="u" style="min-width:36px">室内</span>
-<input id="tempIn" type="number" inputmode="decimal" step="0.1" placeholder="例：20">
+<input id="tempIn" type="text" data-calc placeholder="例：20">
 <span class="u">℃</span>
 </div>
 <div class="unit-row" style="margin-top:8px">
 <span class="u" style="min-width:36px">外気</span>
-<input id="tempOut" type="number" inputmode="decimal" step="0.1" placeholder="例：5">
+<input id="tempOut" type="text" data-calc placeholder="例：5">
 <span class="u">℃</span>
 </div>
 <div class="temphint" id="temphint"></div>
@@ -231,14 +231,14 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 <label class="field">
 <span class="lab">決定係数 R² の合格閾値 <small>（これ以上で「合格」判定）</small></span>
 <div class="unit-row">
-<input id="thr" type="number" inputmode="decimal" step="0.001" min="0" max="1" value="0.98">
+<input id="thr" type="text" data-calc value="0.98">
 <span class="u">R²≧</span>
 </div>
 </label>
 <label class="field" style="margin-bottom:0">
 <span class="lab">測定回 <small>（任意・何回目の測定か）</small></span>
 <div class="unit-row">
-<input id="run" type="number" inputmode="numeric" step="1" min="1" placeholder="例：1">
+<input id="run" type="text" data-calc placeholder="例：1">
 <span class="u">回目</span>
 </div>
 </label>
@@ -319,6 +319,7 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 
 <div class="tip">
 📱 <strong>ホーム画面に追加</strong>：Safariで共有ボタン →「ホーム画面に追加」で、アプリのように使えます（オフラインでも動作）。<br>
+🧮 数値の欄は計算式も入れられます（例：<code>1820*6+1820*5</code>。確定すると答えになります）。<br>
 💾 入力した値はこの端末の中だけに保存され、画面を閉じても残ります（外部には送りません）。消すときは「一括リセット」または「全部消す」を押してください。
 </div>
 
@@ -345,6 +346,139 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 </div>
 
 <script>
+/* 入力の手助け（2026-11-12 本人「入力欄をタブで移動したい」「数値入力欄は計算式でもOKに」・全部の道具に共通）
+ *   1. 数値の欄に計算式（例 1820*6+1820*5、(10.92+9.1)*2、1,820×3）を入れると、確定したときに答えの数字に置き換える
+ *      数値の欄＝ data-calc を付けた欄・type="number" の欄・window.INPUT_ASSIST_SEL（道具ごとの選び方）に当たる欄
+ *      使える記号：+ - * / × ÷ ( ) と全角の同じ記号・桁区切りのカンマ。式でない（文字を含む）ときは何もしない
+ *   2. 入力の確定で画面が描き直されても、Tab・Shift+Tab・クリックで移ろうとした先の欄へカーソルを戻す
+ *      （描き直しで行き先の欄が作り直され、カーソルが消えていた）。移った欄は中身を選んだ状態にして、すぐ打ち直せる
+ *   3. ファイル（保存データの JSON など）を画面のどこへ落としても読み込む（下の 3.）
+ *   組み込むときの決まり：欄の横の補助ボタン（−・＋・×など）は tabindex="-1" にして、Tab が入力欄だけを順に移るようにする（11/12）
+ *   道具の画面の処理には手を入れない。document に先回りの受け口（capture）を付けるだけ
+ */
+(function(){
+  "use strict";
+  if(window.InputAssist) return;
+
+  /* ---- 1. 計算式 ---- */
+  var OPS=/[+\-*/()]/;
+  function norm(s){
+    return String(s).normalize("NFKC").replace(/[×✕xX]/g,"*").replace(/÷/g,"/").replace(/[−–—ー]/g,"-").replace(/\s+/g,"");
+  }
+  // 数字・小数点・四則・括弧だけを読む小さな読み取り（eval は使わない）
+  function calc(src){
+    var s=norm(src); if(!s||/[^0-9.,+\-*/()]/.test(s)) return null;
+    s=s.replace(/(\d),(?=\d{3}(\D|$))/g,"$1");          // 桁区切りのカンマ
+    if(/,/.test(s)) return null;
+    var i=0;
+    function num(){ var m=/^\d*\.?\d+|^\d+\.?/.exec(s.slice(i)); if(!m) throw 0; i+=m[0].length; return parseFloat(m[0]); }
+    function fac(){ var c=s[i];
+      if(c==="+"){ i++; return fac(); } if(c==="-"){ i++; return -fac(); }
+      if(c==="("){ i++; var v=add(); if(s[i]!==")") throw 0; i++; return v; }
+      return num(); }
+    function mul(){ var v=fac(); while(s[i]==="*"||s[i]==="/"){ var o=s[i++], w=fac(); v=o==="*"?v*w:v/w; } return v; }
+    function add(){ var v=mul(); while(s[i]==="+"||s[i]==="-"){ var o=s[i++], w=mul(); v=o==="+"?v+w:v-w; } return v; }
+    try{ var v=add(); if(i!==s.length||!isFinite(v)) return null; return +v.toPrecision(12); }catch(e){ return null; }
+  }
+  function isNumField(el){
+    if(!el||el.tagName!=="INPUT") return false;
+    if(el.hasAttribute("data-calc")||el.type==="number") return true;
+    var sel=window.INPUT_ASSIST_SEL; return !!(sel&&el.matches&&el.matches(sel));
+  }
+  // 式なら答えに置き換える。置き換えたら true
+  function apply(el){
+    if(!isNumField(el)) return false;
+    var raw=el.value, s=norm(raw);
+    if(!OPS.test(s.replace(/^[+\-]/,""))) return false;      // 先頭の符号だけは式ではない
+    var v=calc(raw); if(v===null) return false;
+    el.value=String(v);
+    // 入力のたび（input）に値を読む・保存する道具にも答えを渡す（11/12 気密・全館空調の作業員の指摘）
+    el.dispatchEvent(new Event("input",{bubbles:true}));
+    return true;
+  }
+  document.addEventListener("change",function(e){ apply(e.target); },true);
+  // Enter で確定する欄（keydown で値を読む道具）にも効かせる
+  document.addEventListener("keydown",function(e){ if(e.key==="Enter"&&!e.isComposing) apply(e.target); },true);
+
+  /* ---- 2. 描き直しのあとの行き先 ---- */
+  var FOC='input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled]),button:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])';
+  var TEXTY=/^(text|search|number|tel|url|email|password|)$/;
+  function visible(el){ return !!(el.offsetWidth||el.offsetHeight||el.getClientRects().length)&&getComputedStyle(el).visibility!=="hidden"; }
+  function focusables(){ return Array.prototype.filter.call(document.querySelectorAll(FOC),function(el){ return el.tabIndex>=0&&visible(el)&&!el.closest("[hidden],[inert]"); }); }
+  // 欄の名札：タグ・id・name・type・data-*（描き直しても同じ欄なら同じ）と、同じ名札の中の何番目か
+  function tag(el){
+    var a=[el.tagName,el.id,el.name||"",el.getAttribute("type")||""];
+    Array.prototype.forEach.call(el.attributes,function(x){ if(x.name.indexOf("data-")===0) a.push(x.name+"="+x.value); });
+    return a.join("|");
+  }
+  function sig(el){ var t=tag(el), n=0, all=document.querySelectorAll(el.tagName);
+    for(var k=0;k<all.length;k++){ if(all[k]===el) break; if(tag(all[k])===t) n++; }
+    return {t:t,n:n,tagName:el.tagName}; }
+  function find(g){ var all=document.querySelectorAll(g.tagName), n=0;
+    for(var k=0;k<all.length;k++){ if(tag(all[k])===g.t){ if(n===g.n) return all[k]; n++; } }
+    return null; }
+  var want=null;
+  function restore(){
+    var g=want; want=null; if(!g) return;
+    var ae=document.activeElement;
+    if(ae&&ae!==document.body&&ae.isConnected&&tag(ae)===g.t) return;   // 描き直しがなく、ふつうに移れた
+    if(ae&&ae!==document.body&&ae.isConnected&&ae!==g.from) return;      // 道具が自分で別の欄へ移した
+    var el=find(g); if(!el) return;
+    el.focus({preventScroll:false});
+    if(el.tagName==="INPUT"&&TEXTY.test(el.type)&&el.select) el.select();
+  }
+  document.addEventListener("keydown",function(e){
+    if(e.key!=="Tab"||e.altKey||e.ctrlKey||e.metaKey) return;
+    var t=e.target; if(!t||!/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
+    var L=focusables(), i=L.indexOf(t); if(i<0) return;
+    var nx=L[i+(e.shiftKey?-1:1)]; if(!nx) return;
+    want=sig(nx); want.from=t;
+    setTimeout(restore,0);
+  },true);
+  document.addEventListener("pointerdown",function(e){
+    var t=e.target&&e.target.closest&&e.target.closest("input,select,textarea"); if(!t) return;
+    var ae=document.activeElement; if(!ae||ae===t||!/^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+    want=sig(t); want.from=ae;
+    setTimeout(restore,0);
+  },true);
+
+  /* ---- 3. ファイルをドラッグで入れる（2026-11-12 本人「JSON などをドラッグで入れられるように」・全部の道具に共通） ----
+   *   道具は InputAssist.fileDrop({input:"#ファイルの欄", accept:".json", label:"…"}) を1回呼ぶ。
+   *   画面のどこに落としても、その欄で選んだのと同じ読み込みになる（道具の読み込みの処理はそのまま使う）。
+   *   handle:function(files){…} を渡すと欄を使わずに受け取る。登録がなくても、落としたファイルでページが開き直る
+   *   （入力中のデータが消える）のは防ぐ。道具の中のドラッグ（行・タグの移動）はファイルではないので触らない */
+  var DROP=null, ov=null, depth=0;
+  function hasFiles(e){ var t=e.dataTransfer&&e.dataTransfer.types; return !!t&&Array.prototype.indexOf.call(t,"Files")>=0; }
+  function inFileInput(e){ return !!(e.target&&e.target.closest&&e.target.closest('input[type=file]')); }
+  function overlay(on){
+    if(!ov){ ov=document.createElement("div"); ov.setAttribute("data-ia-drop","");
+      ov.style.cssText="position:fixed;inset:0;z-index:2147483646;display:none;align-items:center;justify-content:center;padding:24px;text-align:center;background:rgba(20,30,40,.55);color:#fff;font:600 20px/1.6 system-ui,sans-serif;pointer-events:none;outline:4px dashed rgba(255,255,255,.8);outline-offset:-16px";
+      document.body.appendChild(ov); }
+    ov.textContent=(DROP&&DROP.label)||"ここに落とすと読み込みます"; ov.style.display=on?"flex":"none";
+  }
+  function okFile(f){ var a=DROP&&DROP.accept; if(!a) return true;
+    return a.split(",").some(function(x){ x=x.trim().toLowerCase(); return x.charAt(0)==="."?f.name.toLowerCase().slice(-x.length)===x:(x.slice(-2)==="/*"?f.type.indexOf(x.slice(0,-1))===0:f.type===x); }); }
+  function say(m){ if(DROP&&DROP.reject) DROP.reject(m); else window.alert(m); }
+  document.addEventListener("dragenter",function(e){ if(!hasFiles(e)||!DROP) return; depth++; overlay(true); },true);
+  document.addEventListener("dragleave",function(e){ if(!hasFiles(e)||!DROP) return; if(--depth<=0){ depth=0; overlay(false); } },true);
+  document.addEventListener("dragover",function(e){ if(!hasFiles(e)||inFileInput(e)) return; e.preventDefault(); if(e.dataTransfer) e.dataTransfer.dropEffect=DROP?"copy":"none"; },true);
+  document.addEventListener("drop",function(e){
+    if(!hasFiles(e)||inFileInput(e)) return;
+    e.preventDefault(); e.stopPropagation(); depth=0; overlay(false);
+    if(!DROP) return;
+    var fs=Array.prototype.slice.call(e.dataTransfer.files||[]), ok=fs.filter(okFile);
+    if(!ok.length){ say("このファイルは読み込めません（"+(DROP.accept||"")+" のファイルを落としてください）"); return; }
+    if(DROP.handle){ DROP.handle(ok); return; }
+    var inp=typeof DROP.input==="string"?document.querySelector(DROP.input):DROP.input; if(!inp) return;
+    var dt=new DataTransfer(); (inp.multiple?ok:ok.slice(0,1)).forEach(function(f){ dt.items.add(f); });
+    inp.files=dt.files; inp.dispatchEvent(new Event("change",{bubbles:true}));
+  },true);
+  function fileDrop(o){ DROP=o||null; }
+
+  window.InputAssist={calc:calc,apply:apply,fileDrop:fileDrop};
+})();
+</script>
+<script>
 (function(){
 "use strict";
 
@@ -357,12 +491,22 @@ const tempInEl=document.getElementById('tempIn');
 const tempOutEl=document.getElementById('tempOut');
 const tempHint=document.getElementById('temphint');
 
+// 数値の欄の読み取り。数字か計算式（確定すると答えの数字になる）だけを読む。読めなければ NaN
+// （計算式が途中のまま残った欄を、先頭の数字だけで計算してしまわないため）
+function num(el){
+  const v=el.value.trim();
+  if(v==='') return NaN;
+  if(/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(v)) return Number(v);
+  const c=window.InputAssist.calc(v);
+  return c===null?NaN:c;
+}
+
 // 室温 → 空気密度 ρ（未入力は1.2）
 // 補正に使う温度：外気を優先し、なければ室内。両方未入力ならNaN
 function rhoTemp(){
-  const tOut=parseFloat(tempOutEl.value);
+  const tOut=num(tempOutEl);
   if(isFinite(tOut)) return tOut;
-  const tIn=parseFloat(tempInEl.value);
+  const tIn=num(tempInEl);
   if(isFinite(tIn)) return tIn;
   return NaN;
 }
@@ -374,7 +518,7 @@ function currentRho(){
 function updateTempHint(){
   const t=rhoTemp();
   if(isFinite(t) && (273.15+t)>0){
-    const used=isFinite(parseFloat(tempOutEl.value))?'外気':'室内';
+    const used=isFinite(num(tempOutEl))?'外気':'室内';
     tempHint.textContent='→ 補正後の空気密度 ρ = '+currentRho().toFixed(3)+' kg/m³（'+used+'温を使用）';
   } else {
     tempHint.textContent='→ 空気密度 ρ = 1.200 kg/m³（標準値）';
@@ -387,9 +531,9 @@ updateTempHint();
 function rowHTML(i, dp, q){
 return '<tr>'+
 '<td class="no">'+(i+1)+'</td>'+
-'<td><input type="number" inputmode="decimal" step="0.1" class="dp" placeholder="ΔP"'+(dp!=null?' value="'+dp+'"':'')+'></td>'+
-'<td><input type="number" inputmode="decimal" step="0.1" class="q" placeholder="Q"'+(q!=null?' value="'+q+'"':'')+'></td>'+
-'<td class="del"><button class="delbtn" title="削除">−</button></td>'+
+'<td><input type="text" data-calc class="dp" placeholder="ΔP"'+(dp!=null?' value="'+dp+'"':'')+'></td>'+
+'<td><input type="text" data-calc class="q" placeholder="Q"'+(q!=null?' value="'+q+'"':'')+'></td>'+
+'<td class="del"><button class="delbtn" tabindex="-1" title="削除">−</button></td>'+
 '</tr>';
 }
 
@@ -473,6 +617,14 @@ document.addEventListener('input', e=>{
   dropStaleResults();
   saveInputs();
 });
+// 計算式を確定すると欄の値が答えに置き換わる（input では起きない）ので、置き換え後の値を控えに取り直す
+document.addEventListener('change', e=>{
+  if(e.target.tagName!=='INPUT') return;
+  calcDone=false;
+  dropStaleResults();
+  updateTempHint();
+  saveInputs();
+});
 // 全部消す（次の現場へ）：R²の合格閾値は設定なので残す
 document.getElementById('clearAll').addEventListener('click', ()=>{
   if(!confirm('入力した内容をすべて消します（R²の合格閾値は残します）。よろしいですか？')) return;
@@ -489,19 +641,21 @@ function clearErr(){ errEl.classList.remove('show'); }
 function compute(scroll){
 clearErr();
 hideResults();
-const S=parseFloat(document.getElementById('area').value);
+const bad=[...document.querySelectorAll('input[data-calc]')].find(e=>e.value.trim()!==''&&isNaN(num(e)));
+if(bad){ showErr('数値として読めない入力があります。数字か計算式（例 1820*6+1820*5）に直してください。'); bad.focus(); bad.select(); return; }
+const S=num(document.getElementById('area'));
 const rho=currentRho(); // 室温入力時は温度補正、未入力は1.2
 if(!(S>0)){ showErr('延床面積 S に正しい数値を入力してください。'); return; }
 // 決定係数の合格閾値（0〜1、未入力・範囲外は既定0.98）
-let thr=parseFloat(document.getElementById('thr').value);
+let thr=num(document.getElementById('thr'));
 if(!(thr>0 && thr<=1)) thr=0.98;
 // 測定回（任意）
-const runV=(document.getElementById('run').value||'').trim();
-const run = runV!=='' ? runV : null;
+const runN=num(document.getElementById('run'));
+const run = isFinite(runN) ? String(runN) : null;
 const pts=[];
 [...rowsEl.children].forEach(tr=>{
-const dp=parseFloat(tr.querySelector('.dp').value);
-const q=parseFloat(tr.querySelector('.q').value);
+const dp=num(tr.querySelector('.dp'));
+const q=num(tr.querySelector('.q'));
 if(dp>0 && q>0) pts.push({dp,q});
 });
 if(pts.length<MIN){ showErr('有効な測定点が'+MIN+'点以上必要です。'); return; }
