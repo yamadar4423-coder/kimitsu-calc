@@ -210,7 +210,7 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 <label class="field">
 <span class="lab">延床面積 S <small>（外皮内の実質延べ床面積）</small></span>
 <div class="unit-row">
-<input id="area" type="text" data-calc placeholder="例：120.50">
+<input id="area" type="text" inputmode="decimal" data-calc placeholder="例：120.50">
 <span class="u">m²</span>
 </div>
 </label>
@@ -218,12 +218,12 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 <span class="lab">温度 <small>（任意・入力すると空気密度ρを温度補正。外気を優先。未入力なら1.2固定）</small></span>
 <div class="unit-row">
 <span class="u" style="min-width:36px">室内</span>
-<input id="tempIn" type="text" data-calc placeholder="例：20">
+<input id="tempIn" type="text" inputmode="decimal" data-calc placeholder="例：20">
 <span class="u">℃</span>
 </div>
 <div class="unit-row" style="margin-top:8px">
 <span class="u" style="min-width:36px">外気</span>
-<input id="tempOut" type="text" data-calc placeholder="例：5">
+<input id="tempOut" type="text" inputmode="decimal" data-calc placeholder="例：5">
 <span class="u">℃</span>
 </div>
 <div class="temphint" id="temphint"></div>
@@ -231,14 +231,14 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px;line-
 <label class="field">
 <span class="lab">決定係数 R² の合格閾値 <small>（これ以上で「合格」判定）</small></span>
 <div class="unit-row">
-<input id="thr" type="text" data-calc value="0.98">
+<input id="thr" type="text" inputmode="decimal" data-calc value="0.98">
 <span class="u">R²≧</span>
 </div>
 </label>
 <label class="field" style="margin-bottom:0">
 <span class="lab">測定回 <small>（任意・何回目の測定か）</small></span>
 <div class="unit-row">
-<input id="run" type="text" data-calc placeholder="例：1">
+<input id="run" type="text" inputmode="numeric" data-calc placeholder="例：1">
 <span class="u">回目</span>
 </div>
 </label>
@@ -531,8 +531,8 @@ updateTempHint();
 function rowHTML(i, dp, q){
 return '<tr>'+
 '<td class="no">'+(i+1)+'</td>'+
-'<td><input type="text" data-calc class="dp" placeholder="ΔP"'+(dp!=null?' value="'+dp+'"':'')+'></td>'+
-'<td><input type="text" data-calc class="q" placeholder="Q"'+(q!=null?' value="'+q+'"':'')+'></td>'+
+'<td><input type="text" inputmode="decimal" data-calc class="dp" placeholder="ΔP"'+(dp!=null?' value="'+dp+'"':'')+'></td>'+
+'<td><input type="text" inputmode="decimal" data-calc class="q" placeholder="Q"'+(q!=null?' value="'+q+'"':'')+'></td>'+
 '<td class="del"><button class="delbtn" tabindex="-1" title="削除">−</button></td>'+
 '</tr>';
 }
